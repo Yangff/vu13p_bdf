@@ -354,8 +354,8 @@ ip_associated_rules.ip_associated_rule = ip_associated_rule
 ip_associated_rule.ip.append(
     B.Ip(vendor="xilinx.com", library="ip", name="ddr4", version="*", ip_interface="C0_SYS_CLK",
          associated_board_interfaces = [AssociatedBoardInterfaces([
-            AssociatedBoardInterface(name=f"ddr4_sdram_c{i}_sys_clk", order=f"{i}"),
-         ]) for i in range(0, 4)]
+            AssociatedBoardInterface(name=f"ddr4_sdram_c{i}_sys_clk", order=f"{i}")
+         for i in range(0, 4) ])]
     )
 )
 
@@ -372,10 +372,9 @@ ifclks = ["default_sysclk1_100", "pcie_refclk"] + [f"ddr4_sdram_c{i}_sys_clk" fo
 ip_associated_rule.ip.extend([
     B.Ip(vendor="xilinx.com", library="ip", name="util_ds_buf", version="*", ip_interface="CLK_IN_D",
         associated_board_interfaces=[AssociatedBoardInterfaces([
-            AssociatedBoardInterface(name=ifname, order=str(idx)),
-        ])]
-    )
-for idx, ifname in enumerate(ifclks)])
+            AssociatedBoardInterface(name=ifname, order=str(idx))
+        for idx, ifname in enumerate(ifclks) ]) ]
+    )])
 
 # system configuration
 
