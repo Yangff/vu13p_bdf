@@ -1,0 +1,47 @@
+name: Generate Board define file
+on: [push]
+jobs:
+  Generate-Board-File:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install xsdata[cli,lxml,soap]
+      - name: XDC From secret
+        env:
+          DDR4_C0: ${{ secrets.DDR4_C0 }}
+          DDR4_C1: ${{ secrets.DDR4_C1 }}
+          DDR4_C2: ${{ secrets.DDR4_C2 }}
+          DDR4_C3: ${{ secrets.DDR4_C3 }}
+          PCIE: ${{ secrets.PCIE }}
+          SYSYTEM: ${{ secrets.SYSYTEM }}
+          VU13P_QSFP: ${{ secrets.VU13P_QSFP }}
+        run: |
+          printf "$DDR4_C0" > ./xdc/ddr4_c0.xdc
+          printf "$DDR4_C1" > ./xdc/ddr4_c1.xdc
+          printf "$DDR4_C2" > ./xdc/ddr4_c2.xdc
+          printf "$DDR4_C3" > ./xdc/ddr4_c3.xdc
+          printf "$PCIE" > ./xdc/pcie.xdc
+          printf "$SYSYTEM" > ./xdc/system.xdc
+          printf "$VU13P_QSFP" > ./xdc/vu13p_qsfp.xdc
+      - name: Generate Scheme
+        run: |
+          xsdata ./dtd/board.dtd --package generated.board
+          xsdata ./dtd/preset.dtd --package generated.preset
+          xsdata ./dtd/part0_pins.dtd --package generated.part0_pins
+      - name: Generate Board Files
+        run: |
+          python3 ./scr/main.py
+      - name: upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: Board Define Files
+          path: result/
+        

@@ -1,0 +1,13 @@
+# python ignores
+*.pyc
+
+# everything in result/ but keep the folders
+
+result/Acompany/vu13p/1.0/*.xml
+result/Acompany/vu13p/1.0/*.jpeg
+result/Acompany/vu13p/1.0/*.json
+
+xdc/*
+
+generated/
+
