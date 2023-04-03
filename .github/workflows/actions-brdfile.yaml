@@ -29,7 +29,7 @@ jobs:
           printf "$DDR4_C2" > ./xdc/ddr4_c2.xdc
           printf "$DDR4_C3" > ./xdc/ddr4_c3.xdc
           printf "$PCIE" > ./xdc/pcie.xdc
-          printf "$SYSYTEM" > ./xdc/system.xdc
+          printf "$SYSYTEM" > ./xdc/sysytem.xdc
           printf "$VU13P_QSFP" > ./xdc/vu13p_qsfp.xdc
       - name: Generate Scheme
         run: |
