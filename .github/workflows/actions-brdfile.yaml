@@ -38,7 +38,7 @@ jobs:
           xsdata ./dtd/part0_pins.dtd --package generated.part0_pins
       - name: Generate Board Files
         run: |
-          python3 ./scr/main.py
+          python3 ./src/main.py
       - name: upload artifact
         uses: actions/upload-artifact@v3
         with:
