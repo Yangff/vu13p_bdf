@@ -105,7 +105,7 @@ def map_xdc_ports(logical_port, physical_port, portname_xdc, direction, ports_da
     pin_len = len(pin_data)
     if lanelimit and pin_len > lanelimit:
         pin_len = lanelimit
-    if pin_len <= 1:
+    if len(pin_data) <= 1:
         pin_map = PinMap()
         pin_map.port_index = '0'
         pin_map.component_pin = component_port
@@ -183,7 +183,16 @@ pcie_ports_data = xdcs['pcie']['ports']
 pcie_iostd_data = xdcs['pcie']['iostd']
 pcie_ports_datarx = gen_rx_databasse(xdcs['pcie']['ports'])
 
+# pcie pins
+pcie_pins = {
+    'clock': {},
+    'reset': {},
+    "lane": {},
+}
+
 # clock
+
+pcie_pins['clock']['c1_st_index'] = str(gIndex)
 
 pcie_refclk = Interface(mode=InterfaceMode.SLAVE, name="pcie_refclk", type="xilinx.com:interface:diff_clock_rtl:1.0", of_component="pcie_refclk", preset_proc="pcie_refclk_preset")
 part0.interfaces.interface.append(pcie_refclk)
@@ -194,27 +203,39 @@ pcie_refclk.port_maps = PortMaps()
 pcie_refclk.port_maps.port_map.append(map_xdc_ports("CLK_P", "pcie_mgt_clkp", "pcie_clk_clk_p", "in", pcie_ports_data, pcie_iostd_data))
 pcie_refclk.port_maps.port_map.append(map_xdc_ports("CLK_N", "pcie_mgt_clkn", "pcie_clk_clk_p", "in", pcie_ports_data, pcie_iostd_data, reverse_name_pn))
 
+pcie_pins['clock']['c1_end_index'] = str(gIndex - 1)
+
+# lanes
+pcie_lanes = [2**i for i in range(5)]
+
 # x16 pcie interface @ X0Y1
 
-pcie16 = Interface(mode=InterfaceMode.MASTER, name="pci_express_x16", type="xilinx.com:interface:pcie_7x_mgt_rtl:1.0", of_component="pci_express", preset_proc="pciex16_preset")
-part0.interfaces.interface.append(pcie16)
-pcie16.preferred_ips = PreferredIps([
-    PreferredIp(vendor="xilinx.com", library="ip", name="xdma", order="0"),
-    PreferredIp(vendor="xilinx.com", library="ip", name="qdma", order="1"),
-    PreferredIp(vendor="xilinx.com", library="ip", name="pcie4_uscale_plus", order="2"),    
-])
+pcie_pins['lane']['c1_st_index'] = str(gIndex)
 
-pcie16.port_maps = PortMaps()
+for lane in pcie_lanes:
+    pcieXN = Interface(mode=InterfaceMode.MASTER, name=f"pci_express_x{lane}", type="xilinx.com:interface:pcie_7x_mgt_rtl:1.0", of_component="pci_express", preset_proc=f"pciex{lane}_preset")
+    part0.interfaces.interface.append(pcieXN)
+    pcieXN.preferred_ips = PreferredIps([
+        PreferredIp(vendor="xilinx.com", library="ip", name="xdma", order="0"),
+        PreferredIp(vendor="xilinx.com", library="ip", name="qdma", order="1"),
+        PreferredIp(vendor="xilinx.com", library="ip", name="pcie4_uscale_plus", order="2"),    
+    ])
 
-pcie16.port_maps.port_map.append(map_xdc_ports("txp", "pcie_tx0_px16", "pcie_lane_txp", "out", pcie_ports_data, pcie_iostd_data))
-pcie16.port_maps.port_map.append(map_xdc_ports("txn", "pcie_tx0_nx16", "pcie_lane_txp", "out", pcie_ports_data, pcie_iostd_data, reverse_name_pn))
+    pcieXN.port_maps = PortMaps()
 
-pcie16.port_maps.port_map.append(map_xdc_ports("rxp", "pcie_rx0_px16", "pcie_lane_rxp", "out", pcie_ports_datarx, pcie_iostd_data))
-pcie16.port_maps.port_map.append(map_xdc_ports("rxn", "pcie_rx0_nx16", "pcie_lane_rxp", "out", pcie_ports_datarx, pcie_iostd_data, reverse_name_pn))
+    pcieXN.port_maps.port_map.append(map_xdc_ports("txp", "pcie_tx0_px16", "pcie_lane_txp", "out", pcie_ports_data, pcie_iostd_data, lanelimit=lane))
+    pcieXN.port_maps.port_map.append(map_xdc_ports("txn", "pcie_tx0_nx16", "pcie_lane_txp", "out", pcie_ports_data, pcie_iostd_data, reverse_name_pn, lanelimit=lane))
 
-pcie16.parameters = Parameters([Parameter(name="block_location", value="X0Y1")])
+    pcieXN.port_maps.port_map.append(map_xdc_ports("rxp", "pcie_rx0_px16", "pcie_lane_rxp", "out", pcie_ports_datarx, pcie_iostd_data, lanelimit=lane))
+    pcieXN.port_maps.port_map.append(map_xdc_ports("rxn", "pcie_rx0_nx16", "pcie_lane_rxp", "out", pcie_ports_datarx, pcie_iostd_data, reverse_name_pn, lanelimit=lane))
+
+    pcieXN.parameters = Parameters([Parameter(name="block_location", value="X0Y1")])
+
+pcie_pins['lane']['c1_end_index'] = str(gIndex - 1)
 
 # reset
+
+pcie_pins['reset']['c1_st_index'] = str(gIndex)
 
 pcie_reset = Interface(mode=InterfaceMode.SLAVE, name="pcie_perstn", type="xilinx.com:signal:reset_rtl:1.0", of_component="pci_express")
 part0.interfaces.interface.append(pcie_reset)
@@ -232,6 +253,7 @@ pcie_reset.parameters = Parameters([
     Parameter(name="type", value="PCIE_PERST"),
 ])
 
+pcie_pins['reset']['c1_end_index'] = str(gIndex - 1)
 
 # system
 
@@ -437,18 +459,18 @@ component_pcie = Component(
     major_group="Miscellaneous", description="PCI Express")
 vu13p.components.component.append(component_pcie)
 component_pcie.component_modes = ComponentModes([
-    ComponentMode(name="pci_express_x16", display_name="pci_express x16", description="Default mode",
-                    interfaces = Interfaces([
-                            Interface(name="pci_express_x16"),
-                            Interface(name="pcie_perstn", optional=InterfaceOptional.TRUE),
-                            Interface(name="pcie_refclk", optional=InterfaceOptional.TRUE),
-                    ]),
-                    preferred_ips = PreferredIps([
-                        PreferredIp(vendor="xilinx.com", library="ip", name="xdma", order="0"),
-                        PreferredIp(vendor="xilinx.com", library="ip", name="qdma", order="1"),
-                        PreferredIp(vendor="xilinx.com", library="ip", name="pcie4_uscale_plus", order="2"),
-                    ])),
-])
+    ComponentMode(name=f"pci_express_x{lane}", display_name="pci_express x16",
+        interfaces = Interfaces([
+            Interface(name=f"pci_express_x{lane}"),
+            Interface(name="pcie_perstn", optional=InterfaceOptional.TRUE),
+            Interface(name="pcie_refclk", optional=InterfaceOptional.TRUE),
+        ]),
+        preferred_ips = PreferredIps([
+            PreferredIp(vendor="xilinx.com", library="ip", name="xdma", order="0"),
+            PreferredIp(vendor="xilinx.com", library="ip", name="qdma", order="1"),
+            PreferredIp(vendor="xilinx.com", library="ip", name="pcie4_uscale_plus", order="2"),
+        ]))
+for lane in pcie_lanes])
 
 ## qsfp
 
@@ -512,7 +534,21 @@ vu13p.connections = Connections([
     ]) for component_id in (1, 2)] + 
     [Connection(name=f"part0_qsfp{component_id}_eeg2102_clk", component1=ConnectionComponent1.PART0, component2=f"qsfp{component_id}_eeg2102_clk", connection_map=[
         ConnectionMap(name=f"part0_qsfp{component_id}_eeg2102_clk", c1_st_index=qsfp_clk_pins[f"qsfp{component_id}"]['c1_st_index'], c1_end_index=qsfp_clk_pins[f"qsfp{component_id}"]['c1_end_index'], c2_st_index="0", c2_end_index=mdd(qsfp_clk_pins[f"qsfp{component_id}"]))
-    ]) for component_id in (1, 2)] 
+    ]) for component_id in (1, 2)] + 
+    # pcie
+    [
+        Connection(name=f"part0_pci_express", component1=ConnectionComponent1.PART0, component2=f"pci_express", connection_map=[
+            ConnectionMap(name=f"part0_pci_express", c1_st_index=pcie_pins["lane"]['c1_st_index'], c1_end_index=pcie_pins["lane"]['c1_end_index'], c2_st_index="0", c2_end_index=mdd(pcie_pins["lane"]))
+        ]),
+        # part0_pcie_perstn
+        Connection(name=f"part0_pcie_perstn", component1=ConnectionComponent1.PART0, component2=f"pcie_perstn", connection_map=[
+            ConnectionMap(name=f"part0_pcie_perstn", c1_st_index=pcie_pins["reset"]['c1_st_index'], c1_end_index=pcie_pins["reset"]['c1_end_index'], c2_st_index="0", c2_end_index=mdd(pcie_pins["reset"]))
+        ]),
+        # part0_pcie_refclk
+        Connection(name=f"part0_pcie_refclk", component1=ConnectionComponent1.PART0, component2=f"pcie_refclk", connection_map=[
+            ConnectionMap(name=f"part0_pcie_refclk", c1_st_index=pcie_pins["clock"]['c1_st_index'], c1_end_index=pcie_pins["clock"]['c1_end_index'], c2_st_index="0", c2_end_index=mdd(pcie_pins["clock"]))
+        ]),
+    ]
 )
 
 # ip associated rule
@@ -591,28 +627,6 @@ ipPresets.ip_preset = [
             UserParameter(name="CONFIG.ADDN_UI_CLKOUT1_FREQ_HZ", value="100"),
         ])),
     ]),
-# pciex16_preset
-    IpPreset(preset_proc_name="pciex16_preset", ip = [
-        Ip(vendor="xilinx.com", library="ip", name="xdma", user_parameters = UserParameters([
-            UserParameter(name="CONFIG.pl_link_cap_max_link_width", value="X16"),
-            UserParameter(name="CONFIG.mode_selection", value="Advanced"),
-            UserParameter(name="CONFIG.en_gt_selection", value="true"),
-            UserParameter(name="CONFIG.select_quad", value="GTY_Quad_227")
-        ])),
-        Ip(vendor="xilinx.com", library="ip", name="qdma", user_parameters = UserParameters([
-            UserParameter(name="CONFIG.pl_link_cap_max_link_speed", value="8.0_GT/s"),
-            UserParameter(name="CONFIG.pl_link_cap_max_link_width", value="X16"),
-            UserParameter(name="CONFIG.mode_selection", value="Advanced"),
-            UserParameter(name="CONFIG.en_gt_selection", value="true"),
-            UserParameter(name="CONFIG.select_quad", value="GTY_Quad_227")
-        ])),
-        Ip(vendor="xilinx.com", library="ip", name="pcie4_uscale_plus", user_parameters = UserParameters([
-            UserParameter(name="CONFIG.pl_link_cap_max_link_width", value="X16"),
-            UserParameter(name="CONFIG.mode_selection", value="Advanced"),
-            UserParameter(name="CONFIG.en_gt_selection", value="true"),
-            UserParameter(name="CONFIG.select_quad", value="GTY_Quad_227")
-        ])),
-    ]),
     IpPreset(preset_proc_name="default_sysclk1_100_preset", ip = [
         Ip(vendor="xilinx.com", library="ip", name="clk_wiz", ip_interface="CLK_IN1_D", user_parameters = UserParameters([
             UserParameter(name="CONFIG.PRIM_IN_FREQ", value="100"),
@@ -629,6 +643,29 @@ ipPresets.ip_preset = [
             UserParameter(name="CONFIG.C_SIZE", value="1"),
         ])),
     ]),
+] + [
+# pciex16_preset
+    IpPreset(preset_proc_name=f"pciex{lane}_preset", ip = [
+        Ip(vendor="xilinx.com", library="ip", name="xdma", user_parameters = UserParameters([
+            UserParameter(name="CONFIG.pl_link_cap_max_link_width", value=f"X{lane}"),
+            UserParameter(name="CONFIG.mode_selection", value="Advanced"),
+            UserParameter(name="CONFIG.en_gt_selection", value="true"),
+            UserParameter(name="CONFIG.select_quad", value="GTY_Quad_227")
+        ])),
+        Ip(vendor="xilinx.com", library="ip", name="qdma", user_parameters = UserParameters([
+            UserParameter(name="CONFIG.pl_link_cap_max_link_speed", value="8.0_GT/s"),
+            UserParameter(name="CONFIG.pl_link_cap_max_link_width", value=f"X{lane}"),
+            UserParameter(name="CONFIG.mode_selection", value="Advanced"),
+            UserParameter(name="CONFIG.en_gt_selection", value="true"),
+            UserParameter(name="CONFIG.select_quad", value="GTY_Quad_227")
+        ])),
+        Ip(vendor="xilinx.com", library="ip", name="pcie4_uscale_plus", user_parameters = UserParameters([
+            UserParameter(name="CONFIG.pl_link_cap_max_link_width", value=f"X{lane}"),
+            UserParameter(name="CONFIG.mode_selection", value="Advanced"),
+            UserParameter(name="CONFIG.en_gt_selection", value="true"),
+            UserParameter(name="CONFIG.select_quad", value="GTY_Quad_227")
+        ])),
+    ]) for lane in pcie_lanes
 ]
 
 
